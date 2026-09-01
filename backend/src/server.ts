@@ -48,14 +48,20 @@ initDb()
       }
     }, 10000);
 
-    app.listen(PORT, () => {
-      console.log(`AIIA-CTMS backend server running on port ${PORT}`);
-    });
+    if (!process.env.VERCEL) {
+      app.listen(PORT, () => {
+        console.log(`AIIA-CTMS backend server running on port ${PORT}`);
+      });
+    }
   })
   .catch((err) => {
     console.error('Failed to initialize database:', err);
-    process.exit(1);
+    if (!process.env.VERCEL) {
+      process.exit(1);
+    }
   });
+
+export default app;
 
 // --- AUTH / LOGIN ROUTE ---
 app.post('/api/auth/login', async (req: Request, res: Response) => {

@@ -12,7 +12,7 @@ export interface Database {
   exec(sql: string): Promise<void>;
 }
 
-const dbPath = path.join(__dirname, '..', 'data', 'aiia_ctms.db');
+const dbPath = process.env.VERCEL ? '/tmp/aiia_ctms.db' : path.join(__dirname, '..', 'data', 'aiia_ctms.db');
 const dbDir = path.dirname(dbPath);
 
 if (!fs.existsSync(dbDir)) {
