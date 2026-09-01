@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, ShieldAlert, Award, FileText, Calendar, Clock, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { Plus, Users, ShieldAlert, Award, FileText, Calendar, Clock, AlertTriangle, CheckCircle, RefreshCw, X, SlidersHorizontal } from 'lucide-react';
 import { ResponsiveContainer, FunnelChart, Funnel, Cell, Tooltip } from 'recharts';
 
 interface PIDashboardProps {
@@ -18,6 +18,13 @@ export default function PIDashboard({ user, studies, refreshData }: PIDashboardP
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [showAeModal, setShowAeModal] = useState(false);
   const [showEcrfModal, setShowEcrfModal] = useState(false);
+
+  // Subject Detail Drawer state
+  const [selectedSubject, setSelectedSubject] = useState<any | null>(null);
+  const [newStatus, setNewStatus] = useState<string>('Screened');
+  const [withdrawalReason, setWithdrawalReason] = useState<string>('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Form states - Study
   const [studyTitle, setStudyTitle] = useState('');
@@ -76,6 +83,16 @@ export default function PIDashboard({ user, studies, refreshData }: PIDashboardP
   useEffect(() => {
     fetchSubjects();
   }, [studies]);
+
+  // Auto-dismiss toast after 4 seconds
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   // Recalculate AE deadline live preview
   useEffect(() => {
@@ -243,6 +260,49 @@ export default function PIDashboard({ user, studies, refreshData }: PIDashboardP
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenManageDrawer = (sub: any) => {
+    setSelectedSubject(sub);
+    setNewStatus(sub.enrollment_status || 'Screened');
+    setWithdrawalReason('');
+  };
+
+  const handleUpdateSubjectStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSubject) return;
+
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch(`/api/subjects/${selectedSubject.subject_id}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: newStatus,
+          actorId: user.id,
+          reason: newStatus === 'Withdrawn' ? withdrawalReason : undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Failed to update status');
+      }
+
+      // Update state locally so Funnel chart and table update in real time
+      setSubjects((prev) =>
+        prev.map((s) => (s.subject_id === selectedSubject.subject_id ? { ...s, enrollment_status: newStatus } : s))
+      );
+
+      setToastMessage(`Subject ${selectedSubject.subject_id} status updated to ${newStatus}`);
+      setSelectedSubject(null);
+      setWithdrawalReason('');
+      refreshData();
+    } catch (err: any) {
+      alert(err.message || 'Error updating status');
+    } finally {
+      setUpdatingStatus(false);
     }
   };
 
@@ -422,11 +482,16 @@ export default function PIDashboard({ user, studies, refreshData }: PIDashboardP
                     <th>Enrollment Date</th>
                     <th>Ayurveda Dosha</th>
                     <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {subjects.map((sub) => (
-                    <tr key={sub.subject_id}>
+                    <tr
+                      key={sub.subject_id}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => handleOpenManageDrawer(sub)}
+                    >
                       <td style={{ fontWeight: 700, color: 'var(--color-primary)' }}>{sub.subject_id}</td>
                       <td>{sub.site_name}</td>
                       <td>{sub.study_title}</td>
@@ -445,6 +510,19 @@ export default function PIDashboard({ user, studies, refreshData }: PIDashboardP
                         }`}>
                           {sub.enrollment_status}
                         </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: '6px' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenManageDrawer(sub);
+                          }}
+                        >
+                          Manage
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -894,6 +972,177 @@ export default function PIDashboard({ user, studies, refreshData }: PIDashboardP
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* SUBJECT DETAIL & STATUS DRAWER */}
+      {selectedSubject && (
+        <div className="drawer-overlay" onClick={() => setSelectedSubject(null)}>
+          <div className="drawer" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '1.2rem' }}>Subject Details</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }}>
+                  Manage recruitment lifecycle and update enrollment status
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSubject(null)}
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', color: 'var(--text-secondary)', borderRadius: '8px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Subject Overview Card */}
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', borderRadius: 'var(--border-radius)', padding: '18px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>De-Identified ID</span>
+                  <p style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-primary)', marginTop: '2px' }}>{selectedSubject.subject_id}</p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Status</span>
+                  <div style={{ marginTop: '2px' }}>
+                    <span className={`badge ${
+                      selectedSubject.enrollment_status === 'Completed' ? 'badge-success' :
+                      selectedSubject.enrollment_status === 'Randomized' ? 'badge-info' :
+                      selectedSubject.enrollment_status === 'Screened' ? 'badge-warning' : 'badge-danger'
+                    }`}>
+                      {selectedSubject.enrollment_status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px', fontSize: '0.85rem' }}>
+                <div>
+                  <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem' }}>Site Center</span>
+                  <span style={{ fontWeight: 600 }}>{selectedSubject.site_name || 'AIIA Site'}</span>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem' }}>Enrolled On</span>
+                  <span style={{ fontWeight: 600 }}>{selectedSubject.enrollment_date || 'N/A'}</span>
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem' }}>Trial Study</span>
+                  <span style={{ fontWeight: 600 }}>{selectedSubject.study_title}</span>
+                </div>
+                {selectedSubject.dosha_profile && (
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem' }}>Prakriti Dosha Profile</span>
+                    <span style={{ fontWeight: 500, color: 'var(--color-info)' }}>
+                      {(() => {
+                        try {
+                          const p = JSON.parse(selectedSubject.dosha_profile);
+                          return `Vata: ${p.vata}% | Pitta: ${p.pitta}% | Kapha: ${p.kapha}%`;
+                        } catch {
+                          return selectedSubject.dosha_profile;
+                        }
+                      })()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Status Update Form */}
+            <form onSubmit={handleUpdateSubjectStatus} style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'space-between' }}>
+              <div>
+                <div className="form-group">
+                  <label htmlFor="change-status-select" style={{ fontSize: '0.9rem', fontWeight: 600 }}>Change Status To</label>
+                  <select
+                    id="change-status-select"
+                    className="form-select"
+                    value={newStatus}
+                    onChange={(e) => setNewStatus(e.target.value)}
+                    style={{ fontSize: '0.95rem', padding: '12px 16px' }}
+                  >
+                    <option value="Screened">Screened</option>
+                    <option value="Randomized">Randomized</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Withdrawn">Withdrawn</option>
+                  </select>
+                </div>
+
+                {/* Conditional Field for Withdrawn */}
+                {newStatus === 'Withdrawn' && (
+                  <div className="form-group" style={{ animation: 'fadeIn 0.2s ease-out' }}>
+                    <label htmlFor="withdrawal-reason-input" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <AlertTriangle size={14} style={{ color: 'var(--color-danger)' }} />
+                      Reason for Withdrawal
+                    </label>
+                    <input
+                      id="withdrawal-reason-input"
+                      type="text"
+                      className="form-input"
+                      value={withdrawalReason}
+                      onChange={(e) => setWithdrawalReason(e.target.value)}
+                      placeholder="e.g. Lost to follow-up, Adverse event, Patient voluntary withdrawal"
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      Optional context logged into the 21 CFR Part 11 audit trail.
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '30px', borderTop: '1px solid var(--glass-border)', paddingTop: '20px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ flex: 1 }}
+                  onClick={() => setSelectedSubject(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ flex: 1.5 }}
+                  disabled={updatingStatus}
+                >
+                  {updatingStatus ? 'Updating...' : 'Update Status'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toastMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '30px',
+            right: '30px',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--color-success)',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5), 0 0 15px rgba(16, 185, 129, 0.2)',
+            padding: '16px 20px',
+            borderRadius: 'var(--border-radius)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            zIndex: 1000,
+            animation: 'fadeIn 0.3s ease-out',
+          }}
+        >
+          <div style={{ background: 'var(--color-success-glow)', color: 'var(--color-success)', padding: '6px', borderRadius: '50%', display: 'flex' }}>
+            <CheckCircle size={18} />
+          </div>
+          <div>
+            <p style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Status Updated</p>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{toastMessage}</p>
+          </div>
+          <button
+            onClick={() => setToastMessage(null)}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', marginLeft: '12px', cursor: 'pointer', display: 'flex' }}
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
 

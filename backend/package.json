@@ -8,7 +8,12 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test": "ts-node src/test.ts",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "db:seed": "ts-node prisma/seed.ts",
+    "db:studio": "prisma studio --port 5555"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",

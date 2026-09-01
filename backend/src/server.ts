@@ -400,7 +400,7 @@ app.get('/api/subjects', async (req: Request, res: Response) => {
 
 // Update subject enrollment status (eCRF action)
 app.post('/api/subjects/:id/status', async (req: Request, res: Response) => {
-  const { status, actorId } = req.body;
+  const { status, actorId, reason } = req.body;
   const db = await getDb();
 
   try {
@@ -412,8 +412,9 @@ app.post('/api/subjects/:id/status', async (req: Request, res: Response) => {
       [status, req.params.id]
     );
 
-    await writeAuditLog(actorId, 'Subject', req.params.id, 'UPDATE', 'enrollment_status', oldSub.enrollment_status, status);
-    res.json({ message: 'Subject enrollment status updated' });
+    const auditNewVal = reason ? `${status} (Reason: ${reason})` : status;
+    await writeAuditLog(actorId || 'u_pi', 'Subject', req.params.id, 'UPDATE', 'enrollment_status', oldSub.enrollment_status, auditNewVal);
+    res.json({ message: 'Subject enrollment status updated', status, reason });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -104,6 +104,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               <Smartphone size={28} style={{ color: 'var(--color-primary)', marginBottom: '10px' }} />
               <h2 style={{ color: '#fff', fontSize: '1.25rem' }}>Verify your authenticator</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '8px' }}>Open Google Authenticator or Microsoft Authenticator and enter the current 6-digit code.</p>
+
             </div>
             {mfaStep.setup && <div style={{ textAlign: 'center', marginBottom: '18px' }}><img src={mfaStep.setup.qrCode} alt="Authenticator setup QR code" style={{ width: '180px', height: '180px', background: '#fff', padding: '8px', borderRadius: '8px' }} /><p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '10px' }}>Manual setup key</p><code style={{ color: '#fff', wordBreak: 'break-all' }}>{mfaStep.setup.secret}</code><button type="button" aria-label="Copy setup key" onClick={() => navigator.clipboard?.writeText(mfaStep.setup!.secret)} style={{ marginLeft: '8px', background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer' }}><Copy size={14} /></button></div>}
             <input className="form-input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} placeholder="Enter 6-digit code" value={mfaCode} onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))} required autoFocus style={{ width: '100%', textAlign: 'center', letterSpacing: '0.3em', fontSize: '1.3rem' }} />
